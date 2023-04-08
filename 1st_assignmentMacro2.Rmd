@@ -1,0 +1,218 @@
+---
+title: "1. Assignment Macro II"
+author: "Hannes Wilkovits, Gustav Pirich"
+date: "`r Sys.Date()`"
+output: pdf_document
+latex_engine: xelatex
+---
+
+# Question 1
+
+Construct and report time series plots and report sample means for C/Y, I/Y, and G/Y
+```{r, echo=FALSE, include =FALSE}
+library(readr)
+library(tidyverse)
+library(stargazer)
+library(mFilter)
+library(quantmod)
+library(data.table)
+
+#import TSV file into data frame
+namq_10_gdp__custom_5705993_tabular <- read.delim("~/Library/Mobile Documents/com~apple~CloudDocs/Wirtschaftsuniversitaet/MASTER/Adv.MacroII/Data/namq_10_gdp__custom_5705993_tabular.tsv", header=FALSE)
+```
+
+
+```{r, include =FALSE}
+names(namq_10_gdp__custom_5705993_tabular)[1] <- "rows"
+
+namq_10_gdp__custom_5705993_tabular_t <- t(namq_10_gdp__custom_5705993_tabular)
+
+namq_10_gdp__custom_5705993_tabular.tsv_t_df <- as.data.frame(namq_10_gdp__custom_5705993_tabular_t)
+
+names(namq_10_gdp__custom_5705993_tabular.tsv_t_df)[1] <- "Date"
+names(namq_10_gdp__custom_5705993_tabular.tsv_t_df)[2] <- "Y"
+names(namq_10_gdp__custom_5705993_tabular.tsv_t_df)[3] <- "C"
+names(namq_10_gdp__custom_5705993_tabular.tsv_t_df)[4] <- "G"
+names(namq_10_gdp__custom_5705993_tabular.tsv_t_df)[5] <- "I"
+
+table <- namq_10_gdp__custom_5705993_tabular.tsv_t_df[-1,]
+
+table_2 <- table %>%
+  filter(Date >	"1996-Q1")
+
+table_2$Y <- gsub("p","",as.character(table_2$Y))
+table_2$C <- gsub("p","",as.character(table_2$C))
+table_2$I <- gsub("p","",as.character(table_2$I))
+table_2$G <- gsub("p","",as.character(table_2$G))
+
+final_data <- table_2 %>% mutate(across(.cols = c("Y", "C", "G", "I"), as.numeric))
+```
+
+```{r, echo = FALSE}
+#define GDP as ts object
+par(mfrow=c(2,2))
+GDP <- ts(final_data$Y,
+          start = c(1996, 1), 
+          end = c(2022, 4), 
+          frequency = 4)
+plot(GDP,
+     main = "Netherlands GDP",
+     ylab = "in Million Euros (2010)",
+     col = "steelblue", 
+     lwd = 2)
+
+C <- ts(final_data$C,
+          start = c(1996, 1), 
+          end = c(2022, 4), 
+          frequency = 4)
+plot(C,
+     main = "Netherland Household Consumption",
+     ylab = "in Million Euros (2010)",
+     col = "steelblue", 
+     lwd = 2)
+
+G <- ts(final_data$G,
+          start = c(1996, 1), 
+          end = c(2022, 4), 
+          frequency = 4)
+
+plot(G,
+     main = "Netherland Government Expenditure",
+     ylab = "in Million Euros (2010)",
+     col = "steelblue", 
+     lwd = 2)
+
+I <- ts(final_data$I,
+          start = c(1996, 1), 
+          end = c(2022, 4), 
+          frequency = 4)
+plot(I,
+     main = "Netherland Investment",
+     ylab = "in Million Euros (2010)",
+     col = "steelblue", 
+     lwd = 2)
+```
+
+Reporting sample means
+```{r, echo =FALSE}
+C_GDP <- mean(C/GDP)
+I_GDP <- mean(I/GDP)
+G_GDP <- mean(G/GDP)
+print(data.frame(C_GDP, I_GDP, G_GDP))
+```
+
+We detrend the time series with the Hodrick-Prescott filter.
+```{r, echo = FALSE}
+#Hp decomposition for log(GDP)
+hp.decom_GDP <- hpfilter(log(GDP), freq = 1600, type = "lambda")
+hp.decom_C <- hpfilter(log(C), freq = 1600, type = "lambda")
+hp.decom_I <- hpfilter(log(I), freq = 1600, type = "lambda")
+hp.decom_G <- hpfilter(log(G), freq = 1600, type = "lambda")
+
+par(mfrow=c(2,2))
+plot(hp.decom_GDP$cycle, type = "l", lwd = 2, col = "steelblue", ylab = "Cyclical Component", main = "log(GDP)") 
+abline(h = 0, lty = 2, col = "red")
+
+plot(hp.decom_I$cycle, type = "l", lwd = 2, col = "steelblue", ylab = "Cyclical Component", main = "log(Investment)") 
+abline(h = 0, lty = 2, col = "red")
+
+plot(hp.decom_C$cycle, type = "l", lwd = 2, col = "steelblue", ylab = "Cyclical Component", main = "log(Consumption)") 
+abline(h = 0, lty = 2, col = "red")
+
+plot.ts(hp.decom_G$cycle, type = "l", lwd = 2, col = "steelblue", ylab = "Cyclical Component", main = "log(Government Expenditure)") 
+abline(h = 0, lty = 2, col = "red")
+#TO DO: Change the Y axis intervals => make them nicer
+```
+Report summary table on business cycle stylized facts
+```{r, echo = FALSE}
+#absolute standard deviation of cyclical component
+sdGDP <- sd(hp.decom_GDP$cycle)
+sdI <- sd(hp.decom_I$cycle)
+sdC <- sd(hp.decom_C$cycle)
+sdG <- sd(hp.decom_G$cycle)
+
+#relative standard deviations
+relsdI <- sdI/sdGDP
+relsdC <- sdC/sdGDP
+relsdG <- sdG/sdGDP
+
+#contemporaneous output correlations
+cont_I <- cor(hp.decom_GDP$cycle, hp.decom_I$cycle)
+cont_C <- cor(hp.decom_GDP$cycle, hp.decom_C$cycle)
+cont_G <- cor(hp.decom_GDP$cycle, hp.decom_G$cycle)
+
+df <- data.frame(
+  Y = c(sdGDP, 1, 1), 
+  C = c(sdC, relsdC, cont_C),
+  I = c(sdI, relsdI, cont_I),
+  G = c(sdG, relsdG, cont_G))
+rownames(df) <- c("sd", "relative sd", "cont. correlations")
+```
+```{r, echo = FALSE}
+#Up until 2007 Q4
+#absolute standard deviation of cyclical component
+hp.decom_GDP <- window(hp.decom_GDP$cycle, start=c(1996, 1), end=c(2007, 4))
+hp.decom_I <- window(hp.decom_I$cycle, start=c(1996, 1), end=c(2007, 4)) 
+hp.decom_C <- window(hp.decom_C$cycle, start=c(1996, 1), end=c(2007, 4))
+hp.decom_G <- window(hp.decom_G$cycle, start=c(1996, 1), end=c(2007, 4))
+
+sdGDP <- sd(hp.decom_GDP)
+sdI <- sd(hp.decom_I)
+sdC <- sd(hp.decom_C)
+sdG <- sd(hp.decom_G)
+
+#relative standard deviations
+relsdI <- sdI/sdGDP
+relsdC <- sdC/sdGDP
+relsdG <- sdG/sdGDP
+
+#contemporaneous output correlations
+cont_I <- cor(hp.decom_GDP, hp.decom_I)
+cont_C <- cor(hp.decom_GDP, hp.decom_C)
+cont_G <- cor(hp.decom_GDP, hp.decom_G)
+
+df_2007Q4 <- data.frame(
+  Y = c(sdGDP, 1, 1), 
+  C = c(sdC, relsdC, cont_C),
+  I = c(sdI, relsdI, cont_I),
+  G = c(sdG, relsdG, cont_G))
+rownames(df_2007Q4) <- c("sd", "relative sd", "cont. correlations")
+```
+
+```{r, echo = FALSE}
+#Starting from 2008 Q1
+#absolute standard deviation of cyclical component
+#Hp decomposition for log(GDP)
+hp.decom_GDP <- hpfilter(log(GDP), freq = 1600, type = "lambda")
+hp.decom_C <- hpfilter(log(C), freq = 1600, type = "lambda")
+hp.decom_I <- hpfilter(log(I), freq = 1600, type = "lambda")
+hp.decom_G <- hpfilter(log(G), freq = 1600, type = "lambda")
+
+hp.decom_GDP <- window(hp.decom_GDP$cycle, start=c(2008, 1), end=c(2022, 4))
+hp.decom_I <- window(hp.decom_I$cycle, start=c(2008, 1), end=c(2022, 4)) 
+hp.decom_C <- window(hp.decom_C$cycle, start=c(2008, 1), end=c(2022, 4))
+hp.decom_G <- window(hp.decom_G$cycle, start=c(2008, 1), end=c(2022, 4))
+
+sdGDP <- sd(hp.decom_GDP)
+sdI <- sd(hp.decom_I)
+sdC <- sd(hp.decom_C)
+sdG <- sd(hp.decom_G)
+
+#relative standard deviations
+relsdI <- sdI/sdGDP
+relsdC <- sdC/sdGDP
+relsdG <- sdG/sdGDP
+
+#contemporaneous output correlations
+cont_I <- cor(hp.decom_GDP, hp.decom_I)
+cont_C <- cor(hp.decom_GDP, hp.decom_C)
+cont_G <- cor(hp.decom_GDP, hp.decom_G)
+
+df_20022Q4 <- data.frame(
+  Y = c(sdGDP, 1, 1), 
+  C = c(sdC, relsdC, cont_C),
+  I = c(sdI, relsdI, cont_I),
+  G = c(sdG, relsdG, cont_G))
+rownames(df_20022Q4) <- c("sd", "relative sd", "cont. correlations")
+```
+
